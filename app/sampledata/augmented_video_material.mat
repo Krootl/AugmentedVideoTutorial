@@ -1,0 +1,28 @@
+material {
+    name : "Augmented Video Material",
+    parameters : [
+        {
+            // The texture displaying the frames of the video.
+            type : samplerExternal,
+            name : videoTexture
+        }
+    ],
+    requires : [ uv0 ],
+    shadingModel : unlit,
+    blending : opaque
+}
+
+fragment {
+    void material(inout MaterialInputs material) {
+        prepareMaterial(material);
+
+        float2 uv = getUV0();
+        if (!gl_FrontFacing) {
+          uv.x = 1.0 - uv.x;
+        }
+
+        vec4 color = texture(materialParams_videoTexture, uv).rgba;
+
+        material.baseColor.rgb = inverseTonemapSRGB(color.rgb);
+    }
+}

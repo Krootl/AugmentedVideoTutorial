@@ -1,0 +1,27 @@
+{
+  materials: [
+    {
+      name: 'DefaultMaterial',
+      parameters: [
+        {
+          videoTexture: {
+            external_path: 'MISSING_PATH',
+          },
+        },
+      ],
+      source: 'sampledata/augmented_video_material.mat',
+    },
+  ],
+  model: {
+    attributes: [
+      'Position',
+      'TexCoord',
+      'Orientation',
+    ],
+    collision: {},
+    file: 'sampledata/augmented_video_model.obj',
+    name: 'augmented_video_model',
+    recenter: 'root',
+  },
+  version: '0.54:2',
+}
