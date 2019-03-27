@@ -2,6 +2,9 @@ package com.shliama.augmentedvideotutorial
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.RectF
+import android.media.MediaMetadataRetriever
+import android.media.MediaMetadataRetriever.*
 import android.media.MediaPlayer
 import android.os.Bundle
 import android.util.Log
@@ -9,13 +12,13 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import androidx.core.graphics.rotationMatrix
+import androidx.core.graphics.transform
 import com.google.ar.core.AugmentedImage
 import com.google.ar.core.AugmentedImageDatabase
 import com.google.ar.core.Config
 import com.google.ar.core.Session
-import com.google.ar.sceneform.AnchorNode
 import com.google.ar.sceneform.FrameTime
-import com.google.ar.sceneform.math.Vector3
 import com.google.ar.sceneform.rendering.ExternalTexture
 import com.google.ar.sceneform.rendering.ModelRenderable
 import com.google.ar.sceneform.ux.ArFragment
@@ -26,7 +29,7 @@ open class ArVideoFragment : ArFragment() {
     private lateinit var mediaPlayer: MediaPlayer
     private lateinit var externalTexture: ExternalTexture
     private lateinit var videoRenderable: ModelRenderable
-    private lateinit var videoAnchorNode: AnchorNode
+    private lateinit var videoAnchorNode: VideoAnchorNode
 
     private var activeAugmentedImage: AugmentedImage? = null
 
@@ -102,7 +105,7 @@ open class ArVideoFragment : ArFragment() {
                 return@exceptionally null
             }
 
-        videoAnchorNode = AnchorNode().apply {
+        videoAnchorNode = VideoAnchorNode().apply {
             setParent(arSceneView.scene)
         }
     }
@@ -173,6 +176,30 @@ open class ArVideoFragment : ArFragment() {
 
         requireContext().assets.openFd(augmentedImage.name)
             .use { descriptor ->
+
+                val metadataRetriever = MediaMetadataRetriever()
+                metadataRetriever.setDataSource(
+                    descriptor.fileDescriptor,
+                    descriptor.startOffset,
+                    descriptor.length
+                )
+
+                val videoWidth = metadataRetriever.extractMetadata(METADATA_KEY_VIDEO_WIDTH).toFloatOrNull() ?: 0f
+                val videoHeight = metadataRetriever.extractMetadata(METADATA_KEY_VIDEO_HEIGHT).toFloatOrNull() ?: 0f
+                val videoRotation = metadataRetriever.extractMetadata(METADATA_KEY_VIDEO_ROTATION).toFloatOrNull() ?: 0f
+
+                // Account for video rotation, so that scale logic math works properly
+                val imageSize = RectF(0f, 0f, augmentedImage.extentX, augmentedImage.extentZ)
+                    .transform(rotationMatrix(videoRotation))
+
+                val videoScaleType = VideoScaleType.CenterCrop
+
+                videoAnchorNode.setVideoProperties(
+                    videoWidth = videoWidth, videoHeight = videoHeight, videoRotation = videoRotation,
+                    imageWidth = imageSize.width(), imageHeight = imageSize.height(),
+                    videoScaleType = videoScaleType
+                )
+
                 mediaPlayer.reset()
                 mediaPlayer.setDataSource(descriptor)
             }.also {
@@ -184,11 +211,6 @@ open class ArVideoFragment : ArFragment() {
 
         videoAnchorNode.anchor?.detach()
         videoAnchorNode.anchor = augmentedImage.createAnchor(augmentedImage.centerPose)
-        videoAnchorNode.localScale = Vector3(
-            augmentedImage.extentX, // width
-            1.0f,
-            augmentedImage.extentZ
-        ) // height
 
         activeAugmentedImage = augmentedImage
 
