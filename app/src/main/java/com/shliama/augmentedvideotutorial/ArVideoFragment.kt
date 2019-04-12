@@ -79,8 +79,9 @@ open class ArVideoFragment : ArFragment() {
 
     private fun createArScene() {
         // Create an ExternalTexture for displaying the contents of the video.
-        externalTexture = ExternalTexture()
-        mediaPlayer.setSurface(externalTexture.surface)
+        externalTexture = ExternalTexture().also {
+            mediaPlayer.setSurface(it.surface)
+        }
 
         // Create a renderable with a material that has a parameter of type 'samplerExternal' so that
         // it can display an ExternalTexture.
@@ -98,8 +99,9 @@ open class ArVideoFragment : ArFragment() {
                 return@exceptionally null
             }
 
-        videoAnchorNode = AnchorNode()
-        videoAnchorNode.setParent(arSceneView.scene)
+        videoAnchorNode = AnchorNode().apply {
+            setParent(arSceneView.scene)
+        }
     }
 
     override fun onUpdate(frameTime: FrameTime) {
@@ -114,6 +116,7 @@ open class ArVideoFragment : ArFragment() {
                 try {
                     dismissArVideo()
                     playbackArVideo(augmentedImage)
+                    break
                 } catch (e: Exception) {
                     Log.e(TAG, "Could not play video [${augmentedImage.name}]", e)
                 }
@@ -142,7 +145,11 @@ open class ArVideoFragment : ArFragment() {
 
 
         videoAnchorNode.anchor = augmentedImage.createAnchor(augmentedImage.centerPose)
-        videoAnchorNode.localScale = Vector3(augmentedImage.extentX, 1.0f, augmentedImage.extentZ)
+        videoAnchorNode.localScale = Vector3(
+            augmentedImage.extentX, // width
+            1.0f,
+            augmentedImage.extentZ
+        ) // height
 
         activeAugmentedImage = augmentedImage
 
