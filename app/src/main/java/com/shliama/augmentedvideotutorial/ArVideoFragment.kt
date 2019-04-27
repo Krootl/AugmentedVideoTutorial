@@ -1,5 +1,6 @@
 package com.shliama.augmentedvideotutorial
 
+import android.animation.ValueAnimator
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.RectF
@@ -11,7 +12,9 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.LinearInterpolator
 import android.widget.Toast
+import androidx.core.animation.doOnStart
 import androidx.core.graphics.rotationMatrix
 import androidx.core.graphics.transform
 import com.google.ar.core.AugmentedImage
@@ -161,7 +164,7 @@ open class ArVideoFragment : ArFragment() {
 
     private fun resumeArVideo() {
         mediaPlayer.start()
-        videoAnchorNode.renderable = videoRenderable
+        fadeInVideo()
     }
 
     private fun dismissArVideo() {
@@ -200,6 +203,11 @@ open class ArVideoFragment : ArFragment() {
                     videoScaleType = videoScaleType
                 )
 
+                // Update the material parameters
+                videoRenderable.material.setFloat2(MATERIAL_IMAGE_SIZE, imageSize.width(), imageSize.height())
+                videoRenderable.material.setFloat2(MATERIAL_VIDEO_SIZE, videoWidth, videoHeight)
+                videoRenderable.material.setBoolean(MATERIAL_VIDEO_CROP, VIDEO_CROP_ENABLED)
+
                 mediaPlayer.reset()
                 mediaPlayer.setDataSource(descriptor)
             }.also {
@@ -216,7 +224,19 @@ open class ArVideoFragment : ArFragment() {
 
         externalTexture.surfaceTexture.setOnFrameAvailableListener {
             it.setOnFrameAvailableListener(null)
-            videoAnchorNode.renderable = videoRenderable
+            fadeInVideo()
+        }
+    }
+
+    private fun fadeInVideo() {
+        ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 400L
+            interpolator = LinearInterpolator()
+            addUpdateListener { v ->
+                videoRenderable.material.setFloat(MATERIAL_VIDEO_ALPHA, v.animatedValue as Float)
+            }
+            doOnStart { videoAnchorNode.renderable = videoRenderable }
+            start()
         }
     }
 
@@ -240,5 +260,12 @@ open class ArVideoFragment : ArFragment() {
         private const val TEST_VIDEO_1 = "test_video_1.mp4"
         private const val TEST_VIDEO_2 = "test_video_2.mp4"
         private const val TEST_VIDEO_3 = "test_video_3.mp4"
+
+        private const val VIDEO_CROP_ENABLED = true
+
+        private const val MATERIAL_IMAGE_SIZE = "imageSize"
+        private const val MATERIAL_VIDEO_SIZE = "videoSize"
+        private const val MATERIAL_VIDEO_CROP = "videoCropEnabled"
+        private const val MATERIAL_VIDEO_ALPHA = "videoAlpha"
     }
 }

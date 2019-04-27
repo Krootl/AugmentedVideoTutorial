@@ -5,14 +5,75 @@ material {
             // The texture displaying the frames of the video.
             type : samplerExternal,
             name : videoTexture
+        },
+        {
+            type : float2,
+            name : imageSize
+        },
+        {
+            type : float2,
+            name : videoSize
+        },
+        {
+            type : bool,
+            name : videoCropEnabled
+        },
+        {
+            type : float,
+            name : videoAlpha
         }
     ],
     requires : [ uv0 ],
     shadingModel : unlit,
-    blending : opaque
+    blending : transparent
 }
 
 fragment {
+
+    // Returns - "true" if crop was performed for the UV coordinates; "false" otherwise.
+    bool cropVideo(inout MaterialInputs material, float2 uv) {
+
+        float2 imageSize = materialParams.imageSize.xy;
+        float2 videoSize = materialParams.videoSize.xy;
+
+        float videoAspectRatio = videoSize.x / videoSize.y;
+        float imageAspectRatio = imageSize.x / imageSize.y;
+
+        // Crop excess outer left & right areas
+        if (videoAspectRatio > imageAspectRatio) {
+
+            // Convert absolute numbers to ratio
+            videoSize /= videoSize.y;
+            imageSize /= imageSize.y;
+
+            float excessArea = ((videoSize.x - imageSize.x) / videoSize.x) / 2.0;
+
+            // Make excess area totally transparent (hide/crop)
+            if (uv.x < excessArea || uv.x > 1.0 - excessArea){
+                material.baseColor.rgba *= 0.0;
+                return true;
+            }
+
+        // Crop excess outer top & bottom areas
+        } else if (videoAspectRatio < imageAspectRatio) {
+
+            // Convert absolute numbers to ratio
+            videoSize /= videoSize.x;
+            imageSize /= imageSize.x;
+
+            float excessArea = ((videoSize.y - imageSize.y) / videoSize.y) / 2.0;
+
+            // Make excess area totally transparent (hide/crop)
+            if (uv.y < excessArea || uv.y > 1.0 - excessArea) {
+                material.baseColor.rgba *= 0.0;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+
     void material(inout MaterialInputs material) {
         prepareMaterial(material);
 
@@ -21,8 +82,15 @@ fragment {
           uv.x = 1.0 - uv.x;
         }
 
-        vec4 color = texture(materialParams_videoTexture, uv).rgba;
+        // Crop excess outer video areas
+        if (materialParams.videoCropEnabled) {
+            if (cropVideo(material, uv)) return;
+        }
 
+        vec4 color = texture(materialParams_videoTexture, uv).rgba;
         material.baseColor.rgb = inverseTonemapSRGB(color.rgb);
+
+        // Change video transparency
+        material.baseColor.rgba *= materialParams.videoAlpha;
     }
 }

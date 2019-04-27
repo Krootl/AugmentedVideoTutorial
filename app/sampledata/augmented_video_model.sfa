@@ -8,6 +8,24 @@
             external_path: 'MISSING_PATH',
           },
         },
+        {
+          imageSize: [
+            0,
+            0,
+          ],
+        },
+        {
+          videoSize: [
+            0,
+            0,
+          ],
+        },
+        {
+          videoCropEnabled: false,
+        },
+        {
+          videoAlpha: 0,
+        },
       ],
       source: 'sampledata/augmented_video_material.mat',
     },
