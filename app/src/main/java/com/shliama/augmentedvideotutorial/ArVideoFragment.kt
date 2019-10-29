@@ -9,7 +9,10 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
-import com.google.ar.core.*
+import com.google.ar.core.AugmentedImage
+import com.google.ar.core.AugmentedImageDatabase
+import com.google.ar.core.Config
+import com.google.ar.core.Session
 import com.google.ar.sceneform.AnchorNode
 import com.google.ar.sceneform.FrameTime
 import com.google.ar.sceneform.math.Vector3
@@ -104,24 +107,58 @@ open class ArVideoFragment : ArFragment() {
         }
     }
 
+    /**
+     * In this case, we want to support the playback of one video at a time.
+     * Therefore, if ARCore loses current active image FULL_TRACKING we will pause the video.
+     * If the same image gets FULL_TRACKING back, the video will resume.
+     * If a new image will become active, then the corresponding video will start from scratch.
+     */
     override fun onUpdate(frameTime: FrameTime) {
-        val frame = arSceneView.arFrame
-        if (frame == null || frame.camera.trackingState != TrackingState.TRACKING) {
-            return
-        }
+        val frame = arSceneView.arFrame ?: return
 
         val updatedAugmentedImages = frame.getUpdatedTrackables(AugmentedImage::class.java)
-        for (augmentedImage in updatedAugmentedImages) {
-            if (activeAugmentedImage != augmentedImage && augmentedImage.trackingState == TrackingState.TRACKING) {
-                try {
-                    dismissArVideo()
-                    playbackArVideo(augmentedImage)
-                    break
-                } catch (e: Exception) {
-                    Log.e(TAG, "Could not play video [${augmentedImage.name}]", e)
-                }
+
+        // If current active augmented image isn't tracked anymore and video playback is started - pause video playback
+        val nonFullTrackingImages = updatedAugmentedImages.filter { it.trackingMethod != AugmentedImage.TrackingMethod.FULL_TRACKING }
+        activeAugmentedImage?.let { activeAugmentedImage ->
+            if (isArVideoPlaying() && nonFullTrackingImages.any { it.index == activeAugmentedImage.index }) {
+                pauseArVideo()
             }
         }
+
+        val fullTrackingImages = updatedAugmentedImages.filter { it.trackingMethod == AugmentedImage.TrackingMethod.FULL_TRACKING }
+        if (fullTrackingImages.isEmpty()) return
+
+        // If current active augmented image is tracked but video playback is paused - resume video playback
+        activeAugmentedImage?.let { activeAugmentedImage ->
+            if (fullTrackingImages.any { it.index == activeAugmentedImage.index }) {
+                if (!isArVideoPlaying()) {
+                    resumeArVideo()
+                }
+                return
+            }
+        }
+
+        // Otherwise - make the first tracked image active and start video playback
+        fullTrackingImages.firstOrNull()?.let { augmentedImage ->
+            try {
+                playbackArVideo(augmentedImage)
+            } catch (e: Exception) {
+                Log.e(TAG, "Could not play video [${augmentedImage.name}]", e)
+            }
+        }
+    }
+
+    private fun isArVideoPlaying() = mediaPlayer.isPlaying
+
+    private fun pauseArVideo() {
+        videoAnchorNode.renderable = null
+        mediaPlayer.pause()
+    }
+
+    private fun resumeArVideo() {
+        mediaPlayer.start()
+        videoAnchorNode.renderable = videoRenderable
     }
 
     private fun dismissArVideo() {
@@ -136,6 +173,7 @@ open class ArVideoFragment : ArFragment() {
 
         requireContext().assets.openFd(augmentedImage.name)
             .use { descriptor ->
+                mediaPlayer.reset()
                 mediaPlayer.setDataSource(descriptor)
             }.also {
                 mediaPlayer.isLooping = true
@@ -144,6 +182,7 @@ open class ArVideoFragment : ArFragment() {
             }
 
 
+        videoAnchorNode.anchor?.detach()
         videoAnchorNode.anchor = augmentedImage.createAnchor(augmentedImage.centerPose)
         videoAnchorNode.localScale = Vector3(
             augmentedImage.extentX, // width
